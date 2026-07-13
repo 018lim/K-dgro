@@ -1,0 +1,16 @@
+# 보안 설정
+.env
+
+# 가상환경
+.venv/
+
+# 파이썬 캐시
+__pycache__/
+*.pyc
+
+# K-DGRO 데이터 캐시 폴더 (용량 낭비 방지)
+price_cache/
+docs_cache/
+
+# 선택사항: 테스트 결과물 제외 (원치 않으면 지워도 됩니다)
+kdgro_backtest_result.xlsx
