@@ -9,6 +9,7 @@ from kdgro_backtester import run_index_backtest
 from kdgro_scorer import calculate_universe_zscores
 from kdgro_portfolio_builder import build_custom_portfolio
 from kdgro_ai_analyst import generate_ai_report 
+from kdgro_trader import get_access_token, get_current_holdings, execute_rebalancing, is_market_open
 
 st.set_page_config(page_title="K-DGRO 퀀타멘탈 시스템", page_icon="📈", layout="wide")
 
@@ -81,7 +82,7 @@ if run_btn:
         if 'ai_report' in st.session_state:
             del st.session_state['ai_report']
 
-tab1, tab2, tab3 = st.tabs(["📊 백테스트 리포트", "📋 연도별 포트폴리오", "🤖 AI 애널리스트"])
+tab1, tab2, tab3, tab4 = st.tabs(["시뮬레이션 결과", "연도별 포트폴리오", "AI 리포트", "📈 실전 매매 & 잔고"])
 
 # --- [Tab 1] 백테스트 결과 ---
 with tab1:
@@ -134,11 +135,23 @@ with tab1:
             kdgro_ret, kdgro_mdd, kdgro_shr = calc_metrics(df_y['K-DGRO_Index'])
             kospi_ret, kospi_mdd, kospi_shr = calc_metrics(df_y['KOSPI_Index'])
             
+            div_y = st.session_state.get('yearly_contrib', {}).get(y, {}).get('div_yield', 0)
+            
             annual_data.append({
-                "기간": period_str, "종목명": "K-DGRO", "수익률": f"{kdgro_ret*100:.2f}%", "MDD": f"{kdgro_mdd*100:.2f}%", "샤프지수": f"{kdgro_shr:.2f}"
+                "기간": period_str, 
+                "종목명": "K-DGRO", 
+                "수익률": f"{kdgro_ret*100:.2f}%", 
+                "MDD": f"{kdgro_mdd*100:.2f}%", 
+                "샤프지수": f"{kdgro_shr:.2f}",
+                "배당수익률": f"{div_y:.2f}%"  # 💡 [추가] 배당 컬럼
             })
             annual_data.append({
-                "기간": "", "종목명": "KOSPI", "수익률": f"{kospi_ret*100:.2f}%", "MDD": f"{kospi_mdd*100:.2f}%", "샤프지수": f"{kospi_shr:.2f}"
+                "기간": "", 
+                "종목명": "KOSPI", 
+                "수익률": f"{kospi_ret*100:.2f}%", 
+                "MDD": f"{kospi_mdd*100:.2f}%", 
+                "샤프지수": f"{kospi_shr:.2f}",
+                "배당수익률": "-"            # 코스피는 공란 처리
             })
             
         df_annual = pd.DataFrame(annual_data)
@@ -235,3 +248,56 @@ with tab3:
             st.info(st.session_state['ai_report']['report'])
     else:
         st.info("👈 사이드바에서 '시뮬레이션 실행' 버튼을 눌러주세요.")
+with tab4:
+            st.header("💸 한투 모의투자 계좌 관리")
+            st.markdown("---")
+            
+            col1, col2 = st.columns(2)
+            
+            # [좌측 화면] 현재 잔고 조회 기능
+            with col1:
+                st.subheader("📊 현재 보유 잔고")
+                if st.button("🔄 잔고 새로고침"):
+                    with st.spinner("한국투자증권 서버와 통신 중..."):
+                        token = get_access_token()
+                        if token:
+                            holdings = get_current_holdings(token)
+                            if holdings:
+                                # 딕셔너리를 예쁜 데이터프레임으로 변환하여 표출
+                                import pandas as pd
+                                df_holdings = pd.DataFrame(list(holdings.items()), columns=['종목코드', '보유수량(주)'])
+                                st.dataframe(df_holdings, hide_index=True, use_container_width=True)
+                            else:
+                                st.info("텅~ 계좌가 비어있습니다. 새로운 포트폴리오를 담아보세요!")
+                        else:
+                            st.error("API 토큰 발급 실패. .env 파일을 확인해주세요.")
+            
+            # [우측 화면] 자동 리밸런싱 실행 기능
+            with col2:
+                st.subheader("🚀 K-DGRO 자동 매매 엔진")
+                st.info("왼쪽 [연도별 포트폴리오] 탭에 생성된 최신 포트폴리오 기준으로 매매를 진행합니다.")
+                
+                # 운용 예산 입력기
+                budget_input = st.number_input(
+                    "💰 투입할 총 예산 (원)", 
+                    min_value=1000000, 
+                    value=50000000, 
+                    step=1000000,
+                    format="%d"
+                )
+                
+                if st.button("🚨 스마트 리밸런싱 즉시 실행", type="primary"):
+                    
+                    # 💡 [핵심 가드] 버튼을 누르자마자 장중 시간인지부터 검사!
+                    if not is_market_open():
+                        st.error("❌ 현재는 정규장 운영 시간이 아닙니다! (정규장 시간: 평일 09:00 ~ 15:20)")
+                    
+                    else:
+                        # 장중이 맞다면 기존 로직대로 안전하게 매매 진행
+                        if 'df_latest_port' in st.session_state:
+                            df_target = st.session_state['df_latest_port']
+                            st.warning("⏳ 매매 엔진이 가동되었습니다...")
+                            execute_rebalancing(df_target, budget_input)
+                            st.success("✅ 리밸런싱 작업이 완료되었습니다!")
+                        else:
+                            st.error("⚠️ 포트폴리오 데이터가 없습니다. 먼저 좌측 사이드바에서 [시뮬레이션 실행] 버튼을 눌러주세요.")

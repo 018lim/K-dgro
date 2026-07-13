@@ -153,12 +153,14 @@ def run_index_backtest(start_target_year, end_target_year, weights, top_n=30, we
         # Streamlit 대시보드에서 쓸 수 있도록 Top 3, Bottom 3 저장
         yearly_contributors[rebalance_year] = {
             'top': [(ticker_to_name.get(tk, tk), c) for tk, c in sorted_contrib[:3]],
-            'bottom': [(ticker_to_name.get(tk, tk), c) for tk, c in sorted_contrib[-3:][::-1]] # Bottom은 손실이 가장 큰 순서로
+            'bottom': [(ticker_to_name.get(tk, tk), c) for tk, c in sorted_contrib[-3:][::-1]],
+            'div_yield': portfolio_div_yield  # 💡 [핵심 추가] 기간별 예상 배당률 기록
         }
         
         print("\n" + "-"*60)
         print(f" 🗓️ [{rebalance_year}년도 매수 구간 결산 리포트]")
         print(f" 📈 K-DGRO 수익률 : {period_port_rtn:>6.2f}% (vs KOSPI: {period_kospi_rtn:>6.2f}%)")
+        print(f" 💰 구간 배당수익률: {portfolio_div_yield:.2f}% (기말 TR 지수에 재투자 완료)") # 💡 이 줄을 추가!
         print("-" * 60)
         
         # 터미널 출력도 단순 수익률이 아닌 '기여도'로 변경

@@ -17,6 +17,7 @@ from kdgro_backtester import run_index_backtest
 from kdgro_scorer import calculate_universe_zscores
 from kdgro_portfolio_builder import build_custom_portfolio
 from kdgro_ai_analyst import run_ai_analyst
+from kdgro_trader import execute_rebalancing
 
 def setup_plot_font():
     """운영체제별 한글 폰트 깨짐 방지 세팅"""
@@ -90,13 +91,14 @@ def main():
     print("\n📈 [Step 2] 전략 백테스팅 시뮬레이션 시작...")
     target_end = 2025 # 2026년 매수를 위한 가장 최신 결산 연도
     
-    df_bt = run_index_backtest(
+    # 💡 df_bt 뒤에 ', yearly_contrib' 를 추가하여 두 개의 결과물을 각각 나눠 받습니다.
+    df_bt, yearly_contrib = run_index_backtest(
         start_target_year=2022, 
         end_target_year=target_end, 
         weights=my_weights, 
         weight_method=weight_method,
-        df_db=df_db_memory,      # 메모리 데이터 주입
-        df_univ=df_univ_memory   # 메모리 데이터 주입
+        df_db=df_db_memory,      
+        df_univ=df_univ_memory   
     )
     
     if df_bt is not None and not df_bt.empty:
@@ -140,10 +142,17 @@ def main():
         if df_latest_port is not None:
             # AI 분석기 호출
             run_ai_analyst(df_latest_port)
-        else:
-            print("🚨 최신 포트폴리오 빌드 실패.")
-            
-    input("\n엔터를 누르면 프로그램이 완전히 종료되며 차트가 닫힙니다...")
+
+        # 💡 [추가된 자동매매 로직]
+        print("\n" + "="*80)
+        trade_yn = input("🚀 한투 모의투자 계좌로 해당 포트폴리오를 매수하시겠습니까? (y/n): ")
+        if trade_yn.lower() == 'y':
+            budget_str = input("💰 투입할 총 자산(원)을 숫자로 입력하세요 (예: 10000000): ")
+            try:
+                budget = int(budget_str)
+                execute_rebalancing(df_latest_port, budget)
+            except ValueError:
+                print("⚠️ 숫자가 잘못 입력되어 매매를 취소합니다.")
 
 # 💡 [핵심] 이 스위치가 있어야 파이썬이 터미널에서 실행될 때 함수를 작동시킵니다!
 if __name__ == "__main__":
