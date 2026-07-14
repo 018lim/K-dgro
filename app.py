@@ -34,7 +34,7 @@ with st.sidebar:
     top_n = st.slider("포트폴리오 편입 종목 수 (Top N)", 10, 50, 30, 5)
     
     weight_method = st.selectbox(
-        "자산 배분 방식",
+        "포트폴리오 구성 방식",
         options=["mcap", "equal", "score"],
         format_func=lambda x: {"mcap": "시가총액 가중", "equal": "동일 가중", "score": "팩터 점수 가중"}[x]
     )
@@ -176,7 +176,7 @@ with tab1:
                 with st.expander(f"📍 {year}년 5월 편입 포트폴리오 기여도 스포트라이트", expanded=(year == max(contrib_data.keys()))):
                     col_t, col_b = st.columns(2)
                     with col_t:
-                        st.success("##### 🚀 멱살 잡고 캐리한 종목 (Top 3)")
+                        st.success("##### 🚀 수익률에 크게 기여한 종목 (Top 3)")
                         for name, c in data['top']:
                             st.write(f"- **{name}** : 기여도 **+{c:.2f}%p**")
                     with col_b:
@@ -226,7 +226,7 @@ with tab2:
 
 # --- [Tab 3] AI 애널리스트 ---
 with tab3:
-    st.markdown("### 🔍 실시간 퀀타멘탈 정성 분석")
+    st.markdown("### 🔍 실시간 AI 정성 분석")
     if 'portfolios' in st.session_state and st.session_state['portfolios']:
         
         current_port_df = st.session_state['portfolios'][st.session_state.get('selected_year', max(st.session_state['portfolios'].keys()))]
@@ -263,10 +263,24 @@ with tab4:
                         if token:
                             holdings = get_current_holdings(token)
                             if holdings:
-                                # 딕셔너리를 예쁜 데이터프레임으로 변환하여 표출
                                 import pandas as pd
-                                df_holdings = pd.DataFrame(list(holdings.items()), columns=['종목코드', '보유수량(주)'])
-                                st.dataframe(df_holdings, hide_index=True, use_container_width=True)
+
+                                # 💡 1. 메모리에 있는 DB에서 '종목코드:종목명' 짝꿍 사전(Dictionary) 만들기
+                                ticker_to_name = dict(zip(df_db_memory['종목코드'], df_db_memory['종목명']))
+                                
+                                holding_data = []
+                                for ticker, qty in holdings.items():
+                                    # 💡 2. 외부 통신 없이 로컬 사전에서 0.001초 만에 이름 찾기 (없으면 티커 그대로 표출)
+                                    name = ticker_to_name.get(ticker, ticker)
+                                        
+                                    holding_data.append({
+                                        "종목명": name,
+                                        "종목코드": ticker,
+                                        "보유수량(주)": qty
+                                    })
+                                
+                                df_holdings = pd.DataFrame(holding_data)
+                                st.dataframe(df_holdings, hide_index=True, width='stretch')
                             else:
                                 st.info("텅~ 계좌가 비어있습니다. 새로운 포트폴리오를 담아보세요!")
                         else:
@@ -294,9 +308,11 @@ with tab4:
                     
                     else:
                         # 장중이 맞다면 기존 로직대로 안전하게 매매 진행
-                        if 'df_latest_port' in st.session_state:
-                            df_target = st.session_state['df_latest_port']
-                            st.warning("⏳ 매매 엔진이 가동되었습니다...")
+                        if 'portfolios' in st.session_state and st.session_state['portfolios']:
+                            latest_year = max(st.session_state['portfolios'].keys())
+                            df_target = st.session_state['portfolios'][latest_year]
+                            
+                            st.warning(f"⏳ 매매 엔진이 가동되었습니다... ({latest_year}년도 포트폴리오 기준)")
                             execute_rebalancing(df_target, budget_input)
                             st.success("✅ 리밸런싱 작업이 완료되었습니다!")
                         else:

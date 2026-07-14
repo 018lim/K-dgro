@@ -15,7 +15,7 @@ from kdgro_scorer import calculate_universe_zscores
 from kdgro_portfolio_builder import build_custom_portfolio
 
 def generate_ai_report(name, ticker):
-    """Gemini 2.0과 신형 SDK를 활용하여 퀀타멘탈 리포트를 생성합니다."""
+    """Gemini 2.5과 신형 SDK를 활용하여 퀀타멘탈 리포트를 생성합니다."""
     if not gemini_api_key:
         return "\n🚨 .env 파일에 GEMINI_API_KEY가 설정되지 않아 AI 분석을 실행할 수 없습니다."
 
@@ -56,7 +56,7 @@ def generate_ai_report(name, ticker):
 def run_ai_analyst(df_latest_port):
     """K-DGRO 포트폴리오 편입 종목 AI 퀀타멘탈 분석기"""
     print("\n" + "="*80)
-    print(" 🤖 K-DGRO AI 퀀타멘탈 애널리스트 가동 (Gemini 2.0 Flash 통합 SDK)")
+    print(" 🤖 K-DGRO AI 퀀타멘탈 애널리스트 가동 (Gemini 2.5 Flash )")
     print("="*80)
 
     port_list = df_latest_port[['종목코드', '종목명', '투자비중(%)']].reset_index(drop=True)

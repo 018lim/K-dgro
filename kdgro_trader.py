@@ -4,11 +4,12 @@ import time
 import requests
 import json
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
-
+_cached_token = None
+_token_issue_time = None
 # 모의투자 전용 URL 및 정보
 URL_BASE = "https://openapivts.koreainvestment.com:29443"
 APP_KEY = os.getenv("HANTU_APP_KEY")
@@ -31,12 +32,23 @@ def is_market_open():
     return False
 
 def get_access_token():
+    global _cached_token, _token_issue_time
+    now = datetime.now()
+    
+    # 💡 [핵심] 이미 발급받은 토큰이 있고, 발급된 지 23시간이 지나지 않았다면 서버에 묻지 않고 바로 재사용!
+    if _cached_token and _token_issue_time and now < _token_issue_time + timedelta(hours=23):
+        return _cached_token
+
     headers = {"content-type": "application/json"}
     body = {"grant_type": "client_credentials", "appkey": APP_KEY, "appsecret": APP_SECRET}
     url = f"{URL_BASE}/oauth2/tokenP"
     res = requests.post(url, headers=headers, data=json.dumps(body))
+    
     if res.status_code == 200:
-        return res.json()["access_token"]
+        _cached_token = res.json()["access_token"]
+        _token_issue_time = now # 토큰을 새로 받은 시간 기록
+        return _cached_token
+        
     print(f"🚨 토큰 발급 실패: {res.text}")
     return None
 
@@ -68,12 +80,16 @@ def get_current_holdings(token):
     res = requests.get(url, headers=headers, params=params)
     holdings = {}
     
-    if res.status_code == 200 and res.json()["rt_cd"] == "0":
+    if res.status_code == 200 and res.json().get("rt_cd") == "0":
         for item in res.json().get("output1", []):
             ticker = item["pdno"]
             qty = int(item["hldg_qty"])
             if qty > 0:
                 holdings[ticker] = qty
+    else:
+        # 💡 [핵심] 한투 서버가 조회를 거절한 '진짜 이유'를 터미널에 출력합니다!
+        print(f"🚨 잔고 조회 API 에러: {res.text}")
+        
     return holdings
 
 def order_market_buy(ticker, qty, token):
@@ -128,7 +144,7 @@ def execute_rebalancing(df_portfolio, total_investment_krw):
         if ticker not in portfolio_tickers:
             print(f"🗑️ [포트폴리오 제외] 종목코드 {ticker} | {current_qty}주 전량 매도 진행")
             order_market_sell(ticker, current_qty, token)
-            time.sleep(0.2)
+            time.sleep(1)
 
     print("-" * 80)
 
@@ -140,7 +156,7 @@ def execute_rebalancing(df_portfolio, total_investment_krw):
         
         target_amount = total_investment_krw * weight
         current_price = get_current_price(ticker, token)
-        time.sleep(0.2) 
+        time.sleep(1) 
         
         if current_price > 0:
             target_qty = int(target_amount // current_price) # 내가 가져야 할 완벽한 수량
@@ -157,6 +173,6 @@ def execute_rebalancing(df_portfolio, total_investment_krw):
             else:
                 print(f"⚖️ [{name}] 목표 {target_qty}주 | 현재 {current_qty}주 ➡️ 비중 완벽 일치 (매매 패스)")
             
-            time.sleep(0.2)
+            time.sleep(1)
         else:
             print(f"🚨 [{name}] 현재가 조회 실패")

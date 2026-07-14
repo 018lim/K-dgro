@@ -53,7 +53,7 @@ def get_user_settings():
     if total == 0: total = 1.0
     weights = {"ROE": w_roe/total, "FCF": w_fcf/total, "Div": w_div/total, "DPS": w_dps/total}
     
-    print("\n포트폴리오 자산 배분 방식을 선택하세요.")
+    print("\n포트폴리오 구성 방식을 선택하세요.")
     print(" [1] mcap  : 시가총액 가중 (대형주 위주 안정성)")
     print(" [2] equal : 동일 가중 (중소형주 위주 수익률)")
     print(" [3] score : 팩터 점수 가중 (Z-Score 극한 활용)")
